@@ -18,8 +18,8 @@ pub struct Lambertian {
 }
 
 impl Lambertian {
-    pub fn new(albedo: Color) -> Lambertian {
-        Lambertian { albedo }
+    pub fn new(a: Color) -> Lambertian {
+        Lambertian { albedo: a }
     }
 }
 
@@ -46,11 +46,15 @@ impl Material for Lambertian {
 
 pub struct Metal {
     albedo: Color,
+    fuzz: f64,
 }
 
 impl Metal {
-    pub fn new(albedo: Color) -> Metal {
-        Metal { albedo }
+    pub fn new(a: Color, f: f64) -> Metal {
+        Metal {
+            albedo: a,
+            fuzz: if f < 1.0 { f } else { 1.0 },
+        }
     }
 }
 
@@ -65,7 +69,42 @@ impl Material for Metal {
         let reflected = vec3::reflect(vec3::unit_vector(r_in.direction()), rec.normal);
 
         *attenuation = self.albedo;
-        *scattered = Ray::new(rec.p, reflected);
+        *scattered = Ray::new(rec.p, reflected + self.fuzz * vec3::random_in_unit_sphere());
         vec3::dot(scattered.direction(), rec.normal) > 0.0
+    }
+}
+
+pub struct Dielectric {
+    ir: f64, // Index of refraction
+}
+
+impl Dielectric {
+    pub fn new(index_of_refraction: f64) -> Dielectric {
+        Dielectric {
+            ir: index_of_refraction,
+        }
+    }
+}
+
+impl Material for Dielectric {
+    fn scatter(
+        &self,
+        r_in: &Ray,
+        rec: &HitRecord,
+        attenuation: &mut Color,
+        scattered: &mut Ray,
+    ) -> bool {
+        let refraction_ratio = if rec.front_face {
+            1.0 / self.ir
+        } else {
+            self.ir
+        };
+
+        let unit_direction = vec3::unit_vector(r_in.direction());
+        let refracted = vec3::refract(unit_direction, rec.normal, refraction_ratio);
+
+        *attenuation = Color::new(1.0, 1.0, 1.0);
+        *scattered = Ray::new(rec.p, refracted);
+        true
     }
 }
